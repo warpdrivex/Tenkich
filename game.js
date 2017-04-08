@@ -151,19 +151,23 @@ setInterval(function gameframe(){
  player.rota=kbstatus[39]-kbstatus[37];
  player.update();
 
- for (var i = 0; i < shots.length; i++){//update bullets' status and position
-  shots[i].update(); //move them
-  if((shots[i].pos.x<0)||(shots[i].pos.y<0)||
-     (shots[i].pos.x>4000)||(shots[i].pos.y>4000))shots.splice(i,1); //destroy bullets out of the map
-  x=Math.floor(shots[i].pos.x/40);y=Math.floor(shots[i].pos.y/40); 
-  if(tilemap[x][y]==1){tilemap[x][y]=0;shots.splice(i,1);} // destroy bullet and tile if collided
- }
-
  if(kbstatus[32]==1) {//shoot or something...
   shots.push(new mover); //Create a new bullet...
   shots[shots.length-1].pos.copy(player.pos); //...at player's position... 
   shots[shots.length-1].vel=vadd(player.vel,dirvec(player.rot,5)); //...with some velocity.
  }
+
+ for (var i = 0; i < shots.length; i++){//update bullets' status and position
+  destroy=false;
+  shots[i].update(); //move them
+  if((shots[i].pos.x<0)||(shots[i].pos.y<0)||
+     (shots[i].pos.x>4000)||(shots[i].pos.y>4000))destroy=true;//destroy bullets out of the map
+  x=Math.floor(shots[i].pos.x/40);y=Math.floor(shots[i].pos.y/40); 
+  if((x>=0)&&(x<100)&&(y>=0)&&(y<100))
+   if(tilemap[x][y]==1){tilemap[x][y]=0;destroy=true;} // destroy bullet and tile if collided
+  if(destroy){shots.splice(i,1);i--;}//remove bullet from array and index--
+ }
+
 
  /*GFX compute*/ //(compute camera position)
  cam.vel.copy(vscale(vdiff( vadd(player.pos,vscale(player.vel,20)) ,cam.pos),0.1));
