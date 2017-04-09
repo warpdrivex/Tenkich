@@ -5,15 +5,20 @@ Number.prototype.mod=function(n){return ((this%n)+n)%n;}
 var cnvas = document.getElementById("gamecanvas");
 var ctx = cnvas.getContext("2d");
 
+/************\
+	utils
+\************/
 function qsin(r){return Math.sin(r*Math.PI/128)}//Custom sine function
 function qcos(r){return Math.cos(r*Math.PI/128)}//Custom cosine function
 
 function vector(x, y) {//vector and stuff it can do...
  this.x = x;
  this.y = y;
+ 
+ // ovaj copy je jako nezgodan, ime je obratno
  this.copy = function (v2){//copy v2 to vector
-  this.x=v2.x;
-  this.y=v2.y;
+	  this.x = v2.x;
+	  this.y = v2.y;
  }
  this.add = function (v2){//add v2 to vector
   this.x+=v2.x;
@@ -44,10 +49,14 @@ function vrot(v, r){ //returns vector rotated by angle r
 }
 function vscale(v, s){return new vector(v.x*s, v.y*s);}//returns vector scaled by scalar s
 
-function mover(){ //Stuff that moves. Init with default values 0.
+
+/************\
+ base classes 
+\************/
+function Mover(){ //Stuff that moves. Init with default values 0.
  /*Kinematic variables*/
- this.pos=new vector(0,0);
- this.vel=new vector(0,0);
+ this.pos = new vector(0,0);
+ this.vel = new vector(0,0);
  this.acc=new vector(0,0);
  this.rot=0;
  this.rotv=0;
@@ -71,18 +80,78 @@ function mover(){ //Stuff that moves. Init with default values 0.
   this.rot+=this.rotv; //apply a. velocity to angle
   this.rot=this.rot.mod(256); //constrain angle within 0 and 2pi
  }
+	
+ /*this.init = function(position, velocity) {
+	// ovo bi trebal biti konstruktor a ne ovak
+	// al je javascript jako jako fenomenalan supac jezik pa je kopiranje po vrijednosti
+	// tolko trivijalno da izgubis sat vremena na njega i ne uspijes!
+	this.pos = position;
+	this.vel = velocity;
+ }*/
 }
 
+function Input() {
+	// takes care of input
+	this.kbstatus = []
 
+	// button press flags
+	// NOTE: ideja ovih varijabli je da input podijelimo na 
+	// flagove (bool), intervale (double) ili diskretne (int)
+	// npr. tak da mozemo svakakve nacine pritiskanja pokupiti
+	// TODO: mis bi isto trebal biti unutra
+	// flags
+	this.shoot = false;
+	this.forward = false;
+	this.back = false;
+	
+	// values
+	this.rotate = 0;
+	this.accel = 0;
+	
+	// called to get input for current frame
+	this.update = function() {
+		// TODO: key status should be updated here
+		this.shoot = (this.kbstatus[32] == 1);
+		this.rotate = this.kbstatus[39] - this.kbstatus[37];
+		this.accel = g_playerInput.kbstatus[38] - g_playerInput.kbstatus[40];
+	}
+	
+	// initializes key values
+	this.init = function() {
+		/*
+			left arrow 	37
+			up arrow 	38
+			right arrow 	39
+			down arrow 	40
+		*/
+		var n; 
+		for (n = 0; n < 256; n++) 
+			this.kbstatus[n] = 0;
+
+		// TODO: read keys from config file
+		_this = this;
+		window.addEventListener("keydown", function(e){ _this.kbstatus[e.keyCode] = 1; }, false);
+		window.addEventListener("keyup"  , function(e){ _this.kbstatus[e.keyCode] = 0; }, false);
+	}
+}
+
+function GameMap() {
+	// objekti bi trebali biti dio ovih klasa a ne globalne stvari
+}
 
 /*******************\
 |** Game var init **|
 \*******************/
-var player=new mover; //player init
+var player = new Mover; //player init
 player.tfric=0.05;
 player.nfric=0.5;
 player.rfric=0.2;
 player.pos = new vector(100,300)
+
+// input
+// TODO: global variables should be prefixed with g_
+g_playerInput = new Input();
+g_playerInput.init()
 
 //bullets
 var shots = [];
@@ -96,7 +165,7 @@ for(x=0;x<100;x++){
 }
 
 
-var cam=new mover; //Camera. Init at the player's position.
+var cam = new Mover; //Camera. Init at the player's position.
 cam.pos.copy(player.pos);
 
 var maxx=cnvas.width;
@@ -116,20 +185,11 @@ new vector(  20, -10)
 /*******************\
 |** Keyboard init **|
 \*******************/
-/*
-left arrow 	37
-up arrow 	38
-right arrow 	39
-down arrow 	40
-*/
-var n, kbstatus = []; for (n=0; n<256; n++) kbstatus[n]=0;
-window.addEventListener("keydown", function(e){kbstatus[e.keyCode]=1;}, false);
-window.addEventListener("keyup"  , function(e){kbstatus[e.keyCode]=0;}, false);
-
 
 /*******************\
 |** GFX functions **|
 \*******************/
+// TODO: isto u klasu, pa maknut u poseban fajl
 function cls(){ctx.clearRect(0, 0, maxx, maxy);}
 function drawcirc(pos,r,style){ctx.beginPath();ctx.arc(pos.x,pos.y,r,0,2*Math.PI);ctx.fillStyle=style;ctx.fill();}
 function drawpoly(pos, rot, shape, style){
@@ -147,14 +207,18 @@ function drawpoly(pos, rot, shape, style){
 |** MAIN LOOP **|
 \***************/
 setInterval(function gameframe(){ 
- player.acc=vrot(new vector(kbstatus[38]-kbstatus[40],0),player.rot);
- player.rota=kbstatus[39]-kbstatus[37];
- player.update();
+ g_playerInput.update()
+ player.acc = vrot(new vector(g_playerInput.accel, 0), player.rot);
+ player.rota = g_playerInput.rotate
+ player.update(); // TODO: ova dva pridruzivanja gore bi trebala ici u player.update
+ // TODO: update fje primaju neki state koji im je potreban za update
 
- if(kbstatus[32]==1) {//shoot or something...
-  shots.push(new mover); //Create a new bullet...
-  shots[shots.length-1].pos.copy(player.pos); //...at player's position... 
-  shots[shots.length-1].vel=vadd(player.vel,dirvec(player.rot,5)); //...with some velocity.
+ if(g_playerInput.shoot) {//shoot or something...
+  var m = new Mover;
+  m.pos.copy(player.pos); //...at player's position... 
+  m.vel=vadd(player.vel,dirvec(player.rot,5)); //...with some velocity.
+  shots.push(m); //Create a new bullet...
+  
  }
 
  for (var i = 0; i < shots.length; i++){//update bullets' status and position
@@ -179,7 +243,8 @@ setInterval(function gameframe(){
 
  ctx.beginPath();
  ctx.fillStyle="#020";
- ctx.rect(0,0,maxx,maxy);ctx.fill();
+ ctx.rect(0,0,maxx,maxy);
+ ctx.fill();
 
  //set camera:
  ctx.save(); 
@@ -187,8 +252,10 @@ setInterval(function gameframe(){
  ctx.translate(-cam.pos.x+maxx/(2*framescale), -cam.pos.y+maxy/(2*framescale));
 
  //draw tiles:
- for(x=0;x<100;x++)for(y=0;y<100;y++){
-  if(tilemap[x][y]==1) drawcirc(new vector(x*40+20,y*40+20), 20,"#46f");
+ for(x = 0; x < 100; x++)
+	 for(y = 0; y < 100; y++) {
+		if(tilemap[x][y]==1) 
+			drawcirc(new vector(x*40+20,y*40+20), 20,"#46f");
  }
 
  //draw tank (this is just a placeholder shape):
